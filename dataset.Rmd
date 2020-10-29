@@ -1,0 +1,58 @@
+---
+title: "Dataset"
+author: "Ana Diedrichs"
+date: "10/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(DataExplorer)
+```
+
+## Dataset
+
+Cargar el dataset 
+
+```{r}
+library(readxl)
+mieles_mza_nea <- read_excel("data/mieles-mza-nea.xls", 
+                             n_max = 205)
+
+```
+
+Limpiamos las columnas que no necesitamos. Renombramos 208 Pb como Pb
+
+```{r}
+dataset <- 
+  mieles_mza_nea %>%  
+  select(-starts_with("Columna")) %>% 
+  rename( "Pb" = "208 Pb")
+```
+
+## Variables
+
+En la columna Origin tenemos los orígenes de las muestras
+
+```{r}
+unique(dataset$Origin)
+
+```
+
+* *VU* Valle de Uco
+* *Sur* , Sur de Mendoza, departamentos San Rafael, Malargue y  ???? (Ver Brenda)
+
+# Correlation plot
+
+```{r}
+plot_correlation(dataset)
+```
+
+# Plot boxplot según Origin
+
+```{r}
+
+plot_boxplot(dataset,by="Origin")
+```
+
