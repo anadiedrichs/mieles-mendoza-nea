@@ -56,3 +56,7 @@ plot_correlation(dataset)
 plot_boxplot(dataset,by="Origin")
 ```
 
+# Modelando con tidymodels
+
+## Primer intento, uso de SMOTE para balanceo de clases 
+
