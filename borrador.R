@@ -13,17 +13,6 @@ dataset <-
 
 # colnames(dataset)[17] <- "Pb"
 
-unique(dataset$Origin)
-
-ggplot(dataset,aes(V,Li)) +
-  geom_point() +
-  geom_smooth(method = "lm")
-
-ggplot(dataset,aes(Origin,Na)) +
-  geom_point() 
-  
-
-plot_boxplot(dataset,by="Origin")
 
 # carga libreria
 library(tidymodels)
@@ -44,9 +33,7 @@ folds
 # receta 
 
 receta <- recipe(Origin ~ ., data = train) %>%
-  step_corr() %>%
-  step_normalize() %>% 
-  step_smote(Origin,over_ratio= 2) 
+   step_smote(Origin, over_ratio= 1) 
 
 rf_spec <- rand_forest(trees = 500) %>%
   set_mode("classification") %>%
@@ -86,3 +73,80 @@ final <- wf %>%
 final
 
 collect_metrics(final)
+
+#####
+
+receta_sin_smote <- recipe(Origin ~ ., data = train) 
+
+wf_sin_smote <- workflow() %>%
+  add_recipe(receta_sin_smote)
+
+
+rf_sin_smote <- wf_sin_smote %>%
+  add_model(rf_spec) %>%
+  fit_resamples(
+    resamples = folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+rf_sin_smote
+
+
+collect_metrics(rf_sin_smote)
+
+matriz <- rf_sin_smote %>%
+  conf_mat_resampled()
+
+
+matriz %>% filter(Prediction == "Noreste")
+
+
+final <- wf_sin_smote %>%
+  add_model(rf_sin_smote) %>%
+  last_fit(split)
+
+final
+
+collect_metrics(final)
+
+# Con transformación PCA
+
+receta_pca <- recipe(Origin ~ ., data = train) %>% 
+  step_umap(all_numeric(),-all_outcomes()) %>% 
+  step_smote() 
+
+wf_pca <- workflow() %>%
+  add_recipe(receta_pca)
+
+
+rf_pca <- wf_pca %>%
+  add_model(rf_spec) %>%
+  fit_resamples(
+    resamples = folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+rf_pca
+
+
+collect_metrics(rf_pca)
+
+matriz <- rf_pca %>%
+  conf_mat_resampled()
+
+
+matriz %>% filter(Prediction == "Noreste")
+
+
+final <- wf_pca %>%
+  add_model(rf_pca) %>%
+  last_fit(split)
+
+final
+
+collect_metrics(final)
+# Con transformación UMAP 
+
+
