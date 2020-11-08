@@ -149,4 +149,11 @@ final
 collect_metrics(final)
 # Con transformación UMAP 
 
+# viendo prep() y bake()
+# https://stackoverflow.com/questions/62189885/what-is-the-difference-among-prep-bake-juice-in-the-r-package-recipes
 
+receta <- recipe(Origin ~ ., data = train) %>%
+  step_smote(Origin, over_ratio= 1) %>% 
+  prep()
+
+train_datos <- bake(receta,new_data = train)
