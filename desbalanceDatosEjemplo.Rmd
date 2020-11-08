@@ -1,0 +1,75 @@
+---
+title: "desbalanceDatosEjemplo"
+author: "Ana Diedrichs"
+date: "11/3/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(recipes)
+library(modeldata)
+library(themis)
+
+data(okc)
+
+sort(table(okc$Class, useNA = "always"))
+#> 
+#>  <NA>  stem other 
+#>     0  9539 50316
+
+ds_rec <- recipe(Class ~ age + height, data = okc) %>%
+  step_meanimpute(all_predictors()) %>%
+  step_smote(Class) %>%
+  prep()
+
+sort(table(juice(ds_rec)$Class, useNA = "always"))
+#> 
+#>  <NA>  stem other 
+#>     0 50316 50316
+
+```
+
+
+```{r}
+example_data <- data.frame(class = letters[rep(1:5, 1:5 * 10)],
+                           x = rnorm(150))
+
+library(ggplot2)
+
+example_data %>%
+  ggplot(aes(class)) +
+  geom_bar()
+
+```
+
+
+Demora en correr lo siguente, chequear 
+
+
+```{r}
+recipe(~., example_data) %>%
+  step_upsample(class, over_ratio = 1) %>%
+  prep() %>%
+  juice() %>%
+  ggplot(aes(class)) +
+  geom_bar()
+
+```
+
+
+```{r}
+recipe(~., example_data) %>%
+  step_downsample(class, under_ratio = 1) %>%
+  prep() %>%
+  juice() %>%
+  ggplot(aes(class)) +
+  geom_bar()
+
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
