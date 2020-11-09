@@ -11,7 +11,9 @@ library(tidyverse)
 library(DataExplorer)
 ```
 
-## Dataset
+# Dataset 
+
+## Carga y limpieza
 
 Cargar el dataset 
 
@@ -43,13 +45,15 @@ unique(dataset$Origin)
 * *VU* Valle de Uco
 * *Sur* , Sur de Mendoza, departamentos San Rafael, Malargue y  ???? (Ver Brenda)
 
-# Correlation plot
+# EDA 
+
+## Correlation plot
 
 ```{r}
 plot_correlation(dataset)
 ```
 
-# Plot boxplot según Origin
+## Plot boxplot según Origin
 
 ```{r}
 
@@ -58,5 +62,434 @@ plot_boxplot(dataset,by="Origin")
 
 # Modelando con tidymodels
 
-## Primer intento, uso de SMOTE para balanceo de clases 
+# Desde el trabajo de Diana
+
+Usar Leave-one-out y LDA no es posible, da error y el libro tmwr dice
+
+
+Asi quesera cross validation con LDA
+
+```{r}
+# cross validation 
+library(tidymodels)
+library(discrim)
+# train y test datasets 
+set.seed(123)
+
+diana_dataset <- dataset %>% filter(Origin %in% c("CHA","CTE","MNE","FSA"))
+
+d_split <- initial_split(diana_dataset, strata = Origin) # 75% train 25% test
+d_train <- training(d_split)
+d_test <- testing(d_split)
+
+set.seed(123)
+d_folds <- vfold_cv(d_train,strata= "Origin") # 5 folds
+d_folds
+
+d_lda <- discrim_linear() %>% 
+  set_engine("MASS")
+
+
+d_receta <- recipe(Origin ~ ., data = d_train) 
+
+wf <- workflow() %>%
+  add_recipe(d_receta)
+
+metrics <- metric_set(kap, accuracy, sensitivity, specificity)
+
+lda_rs <- wf %>%
+  add_model(d_lda) %>%
+  fit_resamples(
+    resamples = d_folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+lda_rs
+
+
+collect_metrics(lda_rs)
+
+d_final <- wf %>%
+  add_model(d_lda) %>%
+  last_fit(d_split)
+
+d_final
+
+collect_metrics(d_final)
+```
+
+Con redes neuronales 
+
+
+```{r}
+# cross validation 
+library(tidymodels)
+library(discrim)
+# train y test datasets 
+set.seed(123)
+
+diana_dataset <- dataset %>% filter(Origin %in% c("CHA","CTE","MNE","FSA"))
+
+d_split <- initial_split(diana_dataset, strata = Origin) # 75% train 25% test
+d_train <- training(d_split)
+d_test <- testing(d_split)
+
+set.seed(123)
+d_folds <- vfold_cv(d_train,strata= "Origin") # 5 folds
+d_folds
+
+d_nnet <- mlp() %>% 
+  set_engine("nnet") %>% 
+  set_mode("classification")
+
+d_receta <- recipe(Origin ~ ., data = d_train) 
+
+wf <- workflow() %>%
+  add_recipe(d_receta)
+
+metrics <- metric_set(kap, accuracy, sensitivity, specificity)
+
+lda_rs <- wf %>%
+  add_model(d_nnet) %>%
+  fit_resamples(
+    resamples = d_folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+lda_rs
+
+
+collect_metrics(lda_rs)
+
+d_final <- wf %>%
+  add_model(d_lda) %>%
+  last_fit(d_split)
+
+d_final
+
+collect_metrics(d_final)
+```
+
+
+```{r}
+mlp(epochs = 100, hidden_units = 5, dropout = 0.1) %>%
+  set_mode("classification") %>% 
+  # Also set engine-specific `verbose` argument to prevent logging the results: 
+  set_engine("keras", verbose = 0)
+```
+
+
+# Caso de nuestro interés
+## Train y test 
+
+En primer lugar dividimos, armamos la receta, para dividir dataset de entrenamiento  de testeo
+
+```{r}
+library(tidymodels)
+library(themis)
+# train y test datasets 
+set.seed(123)
+split <- initial_split(dataset, strata = Origin) # 75% train 25% test
+train <- training(split)
+test <- testing(split)
+
+
+```
+
+## Cross-validation 10 folds 
+
+
+```{r}
+# cross validation 
+
+set.seed(123)
+folds <- vfold_cv(train, strata = Origin, v= 5) # 5 folds
+folds
+```
+
+Modelo base de random forest 
+
+```{r}
+rf_spec <- rand_forest(trees = 500) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+rf_spec
+```
+
+
+## Primer intento, uso de SMOTE para balanceo de las siete clases 
+
+
+```{r}
+
+receta <- recipe(Origin ~ ., data = train) %>%
+   step_smote(Origin, over_ratio= 1) 
+
+wf <- workflow() %>%
+  add_recipe(receta)
+
+metrics <- metric_set(kap, accuracy, sensitivity, specificity)
+
+rf_rs <- wf %>%
+  add_model(rf_spec) %>%
+  fit_resamples(
+    resamples = folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+rf_rs
+
+
+collect_metrics(rf_rs)
+
+
+
+
+```
+
+```{r}
+
+matriz <- rf_rs %>%
+  conf_mat_resampled()
+
+
+matriz %>% filter(Prediction == "Noreste")
+```
+
+
+```{r}
+
+final <- wf %>%
+  add_model(rf_spec) %>%
+  last_fit(split)
+
+final
+
+collect_metrics(final)
+```
+
+
+### Conclusiones de lo anterior 
+
+```{r}
+
+receta_sin_smote <- recipe(Origin ~ ., data = train) 
+
+wf_sin_smote <- workflow() %>%
+  add_recipe(receta_sin_smote)
+
+
+rf_sin_smote <- wf_sin_smote %>%
+  add_model(rf_spec) %>%
+  fit_resamples(
+    resamples = folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+rf_sin_smote
+
+
+collect_metrics(rf_sin_smote)
+
+```
+
+
+```{r, eval = FALSE }
+
+matriz <- rf_sin_smote %>%
+  conf_mat_resampled()
+
+
+matriz %>% filter(Prediction == "Noreste")
+
+
+final <- wf_sin_smote %>%
+  add_model(rf_sin_smote) %>%
+  last_fit(split)
+
+final
+
+collect_metrics(final)
+```
+
+
+### Conclusiones
+
+
+Evidentemente mejora la clasificación multiclase al usar SMOTe vs no usarlo. Esto nos da la intuicion de trabajar con desbalanceo de clases en el problema.
+
+
+## Convirtiendo el problema a clases binarias, clasificador binario
+
+Mendoza vs Norte argentino
+
+```{r}
+dataset %>%  select( Origin) %>% ggplot(aes(Origin)) + geom_histogram(stat="count")
+```
+
+
+
+
+```{r}
+filtro_norte <- c("CHA","CTE","FSA","MNE")
+filtro_mza <- c("Noreste","Sur","VU")
+
+data_bin <- dataset 
+
+#data_bin[which(data_bin$Origin %in% c(filtro_norte,"Noreste","Sur")),"Origin"] <- "Norte"
+
+data_bin[which(data_bin$Origin %in% filtro_norte),"Origin"] <- "Norte"
+
+#data_bin[which(data_bin$Origin %in% "VU"),"Origin"] <- "Mza"
+
+data_bin[which(data_bin$Origin %in% filtro_mza),"Origin"] <- "Mza"
+
+
+
+```
+
+
+```{r}
+plot_boxplot(data_bin, by="Origin")
+```
+
+
+Correr modelo binario con SMOTE 
+
+```{r}
+set.seed(123)
+
+split <- initial_split(data_bin, strata = Origin) # 75% train 25% test
+train <- training(split)
+test <- testing(split)
+
+
+receta_binaria <- recipe(Origin ~ ., data = train) %>%
+   step_smote(Origin, over_ratio= 1) 
+
+wf_bin <- workflow() %>%
+  add_recipe(receta_binaria)
+
+metrics <- metric_set(kap, accuracy, sensitivity, specificity)
+
+rf_bin <- wf %>%
+  add_model(rf_spec) %>%
+  fit_resamples(
+    resamples = folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+rf_bin
+
+
+collect_metrics(rf_bin)
+
+
+
+
+```
+
+
+
+```{r}
+
+matriz <- rf_bin %>%
+  conf_mat_resampled()
+
+
+matriz %>% filter(Prediction == "Noreste")
+
+
+final <- wf_bin %>%
+  add_model(rf_spec) %>%
+  last_fit(split)
+
+final
+
+collect_metrics(final)
+```
+
+### Con ROSE 
+
+DA ERRROR !!! REVISAR LUEGO !!! 
+
+
+```{r, eval= FALSE}
+set.seed(123)
+
+split <- initial_split(data_bin, strata = Origin) # 75% train 25% test
+train <- training(split)
+test <- testing(split)
+
+
+receta_binaria <- recipe(Origin ~ ., data = train) %>%
+   step_rose(Origin) 
+
+wf_bin <- workflow() %>%
+  add_recipe(receta_binaria)
+
+metrics <- metric_set(kap, accuracy, sensitivity, specificity)
+
+rf_bin <- wf %>%
+  add_model(rf_spec) %>%
+  fit_resamples(
+    resamples = folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+rf_bin
+
+
+collect_metrics(rf_bin)
+
+
+
+
+```
+
+
+
+```{r}
+
+matriz <- rf_bin %>%
+  conf_mat_resampled()
+
+
+matriz %>% filter(Prediction == "Noreste")
+
+
+final <- wf_bin %>%
+  add_model(rf_spec) %>%
+  last_fit(split)
+
+final
+
+collect_metrics(final)
+```
+
+## Mejora el modelo con preprocesamiento UMAP o PCA ?
+
+# Conclusiones generales 
+
+Con SMOTE mejora significativamnete el desempeño de los clasificadores.
+En el caso del clasificador binario:
+* VU vs todos es muy bueno el resultado
+* mUY buen resultado en mendoza vs norte 
+
+# TODO list
+
+* Revisar el paso a paso de Tidymodels 
+
+
+
+
+
+
 
