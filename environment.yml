@@ -5,3 +5,5 @@ dependencies:
   - r-tidyverse
   - r-tidymodels
   - r-discriminer
+  - r-themis
+  - r-dataexplorer
