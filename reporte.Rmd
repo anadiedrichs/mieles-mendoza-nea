@@ -13,7 +13,7 @@ output:
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
 library(tidymodels)
-library(DataExplorer)
+#library(DataExplorer)
 ```
 
 # Dataset 
@@ -55,14 +55,48 @@ unique(dataset$Origin)
 ## Correlation plot
 
 ```{r}
-plot_correlation(dataset)
+#plot_correlation(dataset)
+
+library(corrr)
+
+dataset %>% select(-c(Origin) ) %>%  correlate()
+
+dataset %>% select(-c(Origin) ) %>%  correlate() %>% rplot()
+
+
 ```
 
 ## Plot boxplot según Origin
 
 ```{r}
 
-plot_boxplot(dataset,by="Origin")
+#plot_boxplot(dataset,by="Origin")
+```
+
+
+```{r}
+dataset %>%  pivot_longer(cols = -c(Origin)) %>% 
+  ggplot(aes(value,name))+
+  geom_boxplot() +
+  facet_grid(~Origin)
+```
+
+
+```{r}
+dataset %>%  pivot_longer(cols = -c(Origin)) %>% 
+  ggplot(aes(value,name))+
+  geom_boxplot() +
+  facet_wrap(~Origin)
+```
+
+
+```{r}
+dataset %>%  
+  select(Na,Origin,Mn,Mg,Al,Cr) %>% 
+  pivot_longer(cols = -c(Origin)) %>% 
+  ggplot(aes(value,name))+
+  geom_boxplot() +
+  facet_wrap(~Origin)
 ```
 
 # Modelando con tidymodels
@@ -452,7 +486,7 @@ data_bin[which(data_bin$Origin %in% filtro_mza),"Origin"] <- "Mza"
 
 
 ```{r}
-plot_boxplot(data_bin, by="Origin")
+#plot_boxplot(data_bin, by="Origin")
 ```
 
 
