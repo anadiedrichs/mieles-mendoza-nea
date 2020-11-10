@@ -6,4 +6,7 @@ dependencies:
   - r-tidymodels
   - r-discriminer
   - r-themis
-  - r-dataexplorer
+  - r-corrr
+  - r-ranger
+  - r-nnet
+
