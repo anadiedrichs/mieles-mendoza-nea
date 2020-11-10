@@ -2,12 +2,17 @@
 title: "Dataset"
 author: "Ana Diedrichs"
 date: "10/29/2020"
-output: html_document
+output: 
+  html_document: 
+    toc: TRUE 
+    
+
 ---
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
+library(tidymodels)
 library(DataExplorer)
 ```
 
@@ -62,12 +67,22 @@ plot_boxplot(dataset,by="Origin")
 
 # Modelando con tidymodels
 
-# Desde el trabajo de Diana
+
+Métricas a usar en general 
+
+```{r}
+
+metrics <- metric_set(kap, accuracy, sensitivity, specificity)
+```
+
+## Desde el trabajo de Diana
 
 Usar Leave-one-out y LDA no es posible, da error y el libro tmwr dice
 
 
-Asi quesera cross validation con LDA
+Así que será cross validation con LDA
+
+### LDA con cross-validation 
 
 ```{r}
 # cross validation 
@@ -95,7 +110,6 @@ d_receta <- recipe(Origin ~ ., data = d_train)
 wf <- workflow() %>%
   add_recipe(d_receta)
 
-metrics <- metric_set(kap, accuracy, sensitivity, specificity)
 
 lda_rs <- wf %>%
   add_model(d_lda) %>%
@@ -105,7 +119,7 @@ lda_rs <- wf %>%
     control = control_resamples(save_pred = TRUE)
   )
 
-lda_rs
+#lda_rs
 
 
 collect_metrics(lda_rs)
@@ -119,13 +133,11 @@ d_final
 collect_metrics(d_final)
 ```
 
-Con redes neuronales 
+### Con redes neuronales 
 
 
 ```{r}
 # cross validation 
-library(tidymodels)
-library(discrim)
 # train y test datasets 
 set.seed(123)
 
@@ -139,9 +151,10 @@ set.seed(123)
 d_folds <- vfold_cv(d_train,strata= "Origin") # 5 folds
 d_folds
 
-d_nnet <- mlp() %>% 
+d_nnet <-  mlp(hidden_units=30) %>% 
   set_engine("nnet") %>% 
   set_mode("classification")
+
 
 d_receta <- recipe(Origin ~ ., data = d_train) 
 
@@ -150,7 +163,7 @@ wf <- workflow() %>%
 
 metrics <- metric_set(kap, accuracy, sensitivity, specificity)
 
-lda_rs <- wf %>%
+nnet_rs <- wf %>%
   add_model(d_nnet) %>%
   fit_resamples(
     resamples = d_folds,
@@ -158,30 +171,115 @@ lda_rs <- wf %>%
     control = control_resamples(save_pred = TRUE)
   )
 
-lda_rs
+#lda_rs
 
 
-collect_metrics(lda_rs)
+collect_metrics(nnet_rs)
 
-d_final <- wf %>%
-  add_model(d_lda) %>%
+d_final_nnet <- wf %>%
+  add_model(d_nnet) %>%
   last_fit(d_split)
 
-d_final
+#d_final_nnet
+
+collect_metrics(d_final_nnet)
+```
+
+
+
+### Caso random forest
+
+```{r}
+# cross validation 
+# train y test datasets 
+set.seed(123)
+
+diana_dataset <- dataset %>% filter(Origin %in% c("CHA","CTE","MNE","FSA"))
+
+d_split <- initial_split(diana_dataset, strata = Origin) # 75% train 25% test
+d_train <- training(d_split)
+d_test <- testing(d_split)
+
+set.seed(123)
+d_folds <- vfold_cv(d_train,strata= "Origin") # 5 folds
+d_folds
+
+d_rf <- rand_forest() %>% 
+  set_engine("ranger") %>% 
+  set_mode("classification")
+
+d_receta <- recipe(Origin ~ ., data = d_train) 
+
+wf <- workflow() %>%
+  add_recipe(d_receta)
+
+
+rf_rs <- wf %>%
+  add_model(d_rf) %>%
+  fit_resamples(
+    resamples = d_folds,
+    metrics = metrics,
+    control = control_resamples(save_pred = TRUE)
+  )
+
+#rf_rs
+
+
+collect_metrics(rf_rs)
+
+d_final_rf <- wf %>%
+  add_model(d_rf) %>%
+  last_fit(d_split)
+
+#d_final
+
+collect_metrics(d_final_rf)
+```
+
+
+### Conclusiones
+
+Los resultados para cada modelo, con 5-CV, son los siguientes:
+
+LDA 
+
+```{r}
+
 
 collect_metrics(d_final)
 ```
-
-
+Red neuronal
 ```{r}
-mlp(epochs = 100, hidden_units = 5, dropout = 0.1) %>%
-  set_mode("classification") %>% 
-  # Also set engine-specific `verbose` argument to prevent logging the results: 
-  set_engine("keras", verbose = 0)
+
+collect_metrics(d_final_nnet)
 ```
+Random forest
+```{r}
+
+collect_metrics(d_final_rf)
+```
+
+Sensibilidad baja en el training y testing.
+
+Sin lugar a dudas el 0.76 de accuracy de Diana, no contempla el gran desbalance de las clases, es decir, 
+no es comparable con al sensibilidad. 
+
+Se ven resultados prometedores con random forest. Todo esto, sin haber balanceado el dataset.
+
+
+# Mètricas en tidymodels
+
+Accuracy and Kappa use the same definitions as their binary counterpart, with accuracy counting up the number of correctly predicted true values out of the total number of true values, and kappa being a linear combination of two accuracy values.
+
+Matthews correlation coefficient (MCC) has a known multiclass generalization as well, sometimes called the RK statistic. Refer to this page for more details.
+
+ROC AUC is an interesting metric in that it intuitively makes sense to perform macro averaging, which computes a multiclass AUC as the average of the area under multiple binary ROC curves. However, this loses an important property of the ROC AUC statistic in that its binary case is insensitive to class distribution. To combat this, a multiclass metric was created that retains insensitivity to class distribution, but does not have an easy visual interpretation like macro averaging. This is implemented as the "hand_till" method, and is the default for this metric.
+
+Ese texto anterior es de la documentaciòn, ver enlace https://yardstick.tidymodels.org/articles/multiclass.html
 
 
 # Caso de nuestro interés
+
 ## Train y test 
 
 En primer lugar dividimos, armamos la receta, para dividir dataset de entrenamiento  de testeo
@@ -231,7 +329,6 @@ receta <- recipe(Origin ~ ., data = train) %>%
 wf <- workflow() %>%
   add_recipe(receta)
 
-metrics <- metric_set(kap, accuracy, sensitivity, specificity)
 
 rf_rs <- wf %>%
   add_model(rf_spec) %>%
@@ -375,7 +472,6 @@ receta_binaria <- recipe(Origin ~ ., data = train) %>%
 wf_bin <- workflow() %>%
   add_recipe(receta_binaria)
 
-metrics <- metric_set(kap, accuracy, sensitivity, specificity)
 
 rf_bin <- wf %>%
   add_model(rf_spec) %>%
